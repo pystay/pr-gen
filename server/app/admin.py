@@ -1,7 +1,7 @@
-"""运营看板：统计 API + 轻量 HTML 管理页（/admin）。
+"""运营看板（开源免费版）：统计 API + 轻量 HTML 管理页（/admin）。
 
-指标：MRR/ARR、活跃用户（Free vs Pro/Team）、最近订单、待处理询价、
-API 用量与成本趋势、成本告警（单日成本超阈值触发通知）。
+指标：注册用户数、API 用量与成本趋势、成本告警、通知记录。
+（无任何收入/订阅计费数据——项目已完全免费开源。）
 
 鉴权：/admin 登录表单 → 服务端校验 admin token → HttpOnly Cookie；
 /api/admin/stats 校验 Cookie（本地模拟模式放行）。token 不进入 HTML 源码。
@@ -9,6 +9,7 @@ API 用量与成本趋势、成本告警（单日成本超阈值触发通知）�
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Cookie, Request
@@ -17,12 +18,12 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from .config import Settings
 from .db import Database, today
 from .security import Encryptor, admin_token
-from .webhook import downgrade_expired
+
+logger = logging.getLogger("prgen.admin")
 
 router = APIRouter(tags=["admin"])
 
 ADMIN_COOKIE = "prgen_admin"
-PLAN_NAMES = {"free": "Free", "pro": "Pro", "team": "Team"}
 
 
 def _is_admin(request: Request, settings: Settings) -> bool:
@@ -31,85 +32,15 @@ def _is_admin(request: Request, settings: Settings) -> bool:
         return True
     cookie = request.cookies.get(ADMIN_COOKIE)
     query = request.query_params.get("token", "")
-    expected = admin_token(settings.github_webhook_secret)
+    expected = admin_token(settings.data_encryption_key)
     return cookie == expected or query == expected
 
 
 def _stats(settings: Settings, db: Database, enc: Encryptor) -> dict:
-    downgrade_expired(db)  # 先处理到期降级，保证统计口径一致
-    subs = db.list_subscriptions()
-    orders = db.list_orders(limit=20)
-    leads = db.list_leads(limit=50)
-
-    active = [s for s in subs if s["status"] == "active"]
-    counts = {"free": 0, "pro": 0, "team": 0}
-    for s in active:
-        counts[s["plan"]] = counts.get(s["plan"], 0) + 1
-
-    mrr = db.mrr(settings.plan_price)
-
-    # 今日/本月收入（按订单金额汇总）
-    today_str = today()
-    month_str = today_str[:7]
-    today_revenue = sum(o["amount"] for o in orders
-                        if datetime.fromtimestamp(o["created_at"], tz=timezone.utc)
-                        .strftime("%Y-%m-%d") == today_str)
-    month_revenue = sum(o["amount"] for o in orders
-                        if datetime.fromtimestamp(o["created_at"], tz=timezone.utc)
-                        .strftime("%Y-%m") == month_str)
-
-    # 询价列表（解密敏感字段）
-    lead_rows = []
-    for lead in leads:
-        lead_rows.append({
-            "id": lead["id"],
-            "company": enc.decrypt(lead["company_enc"]),
-            "contact_email": enc.decrypt(lead["contact_email_enc"]),
-            "dev_count": lead["dev_count"],
-            "environment": lead["environment"],
-            "needs_custom": bool(lead["needs_custom"]),
-            "quote_amount": lead["quote_amount"],
-            "status": lead["status"],
-            "created_at": lead["created_at"],
-        })
-
-    # 最近订单（按订阅信息补全账户名）
-    order_rows = []
-    sub_by_id = {s["account_id"]: s for s in subs}
-    for o in orders:
-        sub = sub_by_id.get(o["account_id"], {})
-        order_rows.append({
-            **o,
-            "account_login": sub.get("account_login", ""),
-            "plan_name": PLAN_NAMES.get(o["plan"], o["plan"]),
-        })
-
-    # 自营支付流水（payment_logs）与近 90 天收入
-    payments = db.list_payments(limit=20)
-    payment_rows = []
-    for p in payments:
-        payment_rows.append({
-            "order_no": p["order_no"],
-            "tier": p["tier"],
-            "cycle": p["cycle"],
-            "amount": p["amount"],
-            "currency": p["currency"],
-            "channel": p["channel"],
-            "status": p["status"],
-            "created_at": p["created_at"],
-        })
-
+    users = db.list_subscriptions()
     return {
-        "mrr": mrr,
-        "arr": round(mrr * 12, 2),
-        "today_revenue": round(today_revenue, 2),
-        "month_revenue": round(month_revenue, 2),
-        "active_users": counts,
-        "active_total": len(active),
-        "orders": order_rows,
-        "payments": payment_rows,
-        "payment_revenue_90d": db.payment_revenue(days=90),
-        "leads": lead_rows,
+        "users_total": len(users),
+        "users_active": db.active_user_count(),
         "usage": db.usage_series(days=14),
         "today_cost": db.daily_cost(),
         "cost_alert_threshold": settings.cost_alert_threshold,
@@ -125,9 +56,26 @@ def check_cost_alert(settings: Settings, db: Database) -> dict | None:
         message = (f"[成本告警] 今日 API 调用成本 ${cost:.2f} 已超过阈值 "
                    f"${settings.cost_alert_threshold:.2f}")
         if settings.telegram_bot_token and settings.telegram_chat_id:
-            from .leads import notify_human_intervention
+            from urllib import error as urlerror
+            from urllib import request as urlreq
 
-            return notify_human_intervention(settings, db, message)
+            import json as _json
+
+            body = _json.dumps({
+                "chat_id": settings.telegram_chat_id, "text": message,
+            }).encode("utf-8")
+            try:
+                req = urlreq.Request(
+                    f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage",
+                    data=body, method="POST",
+                    headers={"Content-Type": "application/json"},
+                )
+                with urlreq.urlopen(req, timeout=15) as resp:
+                    resp.read()
+                db.add_notification("telegram", message)
+                return {"channel": "telegram"}
+            except (urlerror.URLError, OSError) as exc:
+                logger.warning("Telegram 通知失败，落盘: %s", exc)
         db.add_notification("log", message)
         return {"channel": "log", "message": message}
     return None
@@ -154,7 +102,7 @@ async def admin_login(request: Request):
     except Exception:
         return JSONResponse(status_code=400, content={"error": "invalid json"})
     token = str(payload.get("token", ""))
-    expected = admin_token(settings.github_webhook_secret)
+    expected = admin_token(settings.data_encryption_key)
     if token != expected:
         return JSONResponse(status_code=401, content={"error": "invalid token"})
     resp = JSONResponse(content={"ok": True})
@@ -188,11 +136,11 @@ _ADMIN_HTML = """<!DOCTYPE html>
   th { background: #1f3a5f; color: #fff; }
   h2 { font-size: 15px; margin: 24px 0 8px; }
   .muted { color: #999; font-size: 12px; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; background: #e8f0fe; }
   #login { max-width: 320px; margin: 80px auto; background: #fff; padding: 24px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
   #login input { width: 100%; box-sizing: border-box; padding: 8px; margin: 8px 0; }
   #login button { width: 100%; padding: 8px; background: #1f3a5f; color: #fff; border: 0; border-radius: 6px; cursor: pointer; }
   .hidden { display: none; }
+  .free-badge { display:inline-block; padding:4px 12px; border-radius:12px; background:#e6f7e6; color:#1a7f37; font-size:13px; font-weight:600; }
 </style>
 </head>
 <body>
@@ -204,25 +152,20 @@ _ADMIN_HTML = """<!DOCTYPE html>
   <p id="err" class="muted" style="color:#c0392b"></p>
 </div>
 <div id="dashboard" class="hidden">
-<h1>📊 pr-gen 运营看板 <span class="muted" id="gen"></span></h1>
+<h1>📊 pr-gen 运营看板 <span class="free-badge">完全免费开源</span> <span class="muted" id="gen"></span></h1>
 <div class="cards" id="cards"></div>
-<h2>最近订单</h2>
-<table><thead><tr><th>时间</th><th>账户</th><th>计划</th><th>席位</th><th>金额 (USD)</th></tr></thead>
-<tbody id="orders"></tbody></table>
-<h2>企业询价（leads）</h2>
-<table><thead><tr><th>公司</th><th>邮箱</th><th>开发者数</th><th>环境</th><th>定制</th><th>报价 (USD/年)</th><th>状态</th></tr></thead>
-<tbody id="leads"></tbody></table>
 <h2>API 用量与成本（近 14 天）</h2>
 <table><thead><tr><th>日期</th><th>调用次数</th><th>成本 (USD)</th></tr></thead>
 <tbody id="usage"></tbody></table>
+<h2>通知记录</h2>
+<table><thead><tr><th>渠道</th><th>消息</th><th>时间</th></tr></thead>
+<tbody id="notices"></tbody></table>
 </div>
 <script>
-// 所有动态数据一律经 escapeHtml 转义后插入，防存储型 XSS
 const esc = s => String(s == null ? "" : s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
   .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 const fmt = n => n == null ? "-" : Number(n).toLocaleString("en-US", {maximumFractionDigits: 2});
-const envName = {aws: "AWS", private_idc: "私有 IDC", hybrid: "混合"};
 
 async function login() {
   const r = await fetch("/api/admin/login", {
@@ -242,21 +185,18 @@ async function load() {
   const d = await r.json();
   document.getElementById("gen").textContent = "生成于 " + d.generated_at;
   const cards = [
-    ["MRR", "$" + fmt(d.mrr)], ["ARR", "$" + fmt(d.arr)],
-    ["本月收入", "$" + fmt(d.month_revenue)], ["今日收入", "$" + fmt(d.today_revenue)],
-    ["活跃用户", d.active_total + "（Free " + d.active_users.free + " / Pro " + d.active_users.pro + " / Team " + d.active_users.team + "）"],
+    ["注册用户", d.users_total],
+    ["活跃用户", d.users_active],
     ["今日 API 成本", "$" + fmt(d.today_cost)],
+    ["成本告警阈值", "$" + fmt(d.cost_alert_threshold) + "/天"],
   ];
   document.getElementById("cards").innerHTML = cards.map(([l, v]) =>
     `<div class="card"><div class="label">${esc(l)}</div><div class="value">${esc(v)}</div></div>`).join("");
-  document.getElementById("orders").innerHTML = d.orders.map(o =>
-    `<tr><td>${esc(new Date(o.created_at*1000).toLocaleString())}</td><td>${esc(o.account_login || o.account_id)}</td><td><span class="badge">${esc(o.plan_name)}</span></td><td>${esc(o.seats)}</td><td>$${esc(fmt(o.amount))}</td></tr>`).join("");
-  document.getElementById("leads").innerHTML = d.leads.map(l =>
-    `<tr><td>${esc(l.company)}</td><td>${esc(l.contact_email)}</td><td>${esc(l.dev_count)}</td><td>${esc(envName[l.environment] || l.environment)}</td><td>${esc(l.needs_custom ? "是" : "否")}</td><td>$${esc(fmt(l.quote_amount))}</td><td>${esc(l.status)}</td></tr>`).join("");
   document.getElementById("usage").innerHTML = d.usage.map(u =>
     `<tr><td>${esc(u.day)}</td><td>${esc(u.calls)}</td><td>$${esc(fmt(u.cost))}</td></tr>`).join("");
+  document.getElementById("notices").innerHTML = d.notifications.map(n =>
+    `<tr><td>${esc(n.channel)}</td><td>${esc(n.message)}</td><td>${esc(new Date(n.created_at*1000).toLocaleString())}</td></tr>`).join("");
 }
-// 页面加载时尝试直接拉取（本地模式或已有 Cookie）
 load();
 </script>
 </body>
