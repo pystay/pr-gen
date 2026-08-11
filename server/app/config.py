@@ -1,4 +1,4 @@
-"""server 配置：.env 加载 + 开源免费版配置项。
+"""server 配置：.env 加载。
 
 外部服务（Supabase/Telegram）未配置密钥时自动降级为本地模拟。
 """

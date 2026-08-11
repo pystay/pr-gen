@@ -1,7 +1,7 @@
-"""运营看板（开源免费版）：统计 API + 轻量 HTML 管理页（/admin）。
+"""运营看板：统计 API + 轻量 HTML 管理页（/admin）。
 
 指标：注册用户数、API 用量与成本趋势、成本告警、通知记录。
-（无任何收入/订阅计费数据——项目已完全免费开源。）
+（用户与用量统计。）
 
 鉴权：/admin 登录表单 → 服务端校验 admin token → HttpOnly Cookie；
 /api/admin/stats 校验 Cookie（本地模拟模式放行）。token 不进入 HTML 源码。
@@ -140,7 +140,6 @@ _ADMIN_HTML = """<!DOCTYPE html>
   #login input { width: 100%; box-sizing: border-box; padding: 8px; margin: 8px 0; }
   #login button { width: 100%; padding: 8px; background: #1f3a5f; color: #fff; border: 0; border-radius: 6px; cursor: pointer; }
   .hidden { display: none; }
-  .free-badge { display:inline-block; padding:4px 12px; border-radius:12px; background:#e6f7e6; color:#1a7f37; font-size:13px; font-weight:600; }
 </style>
 </head>
 <body>
@@ -152,7 +151,7 @@ _ADMIN_HTML = """<!DOCTYPE html>
   <p id="err" class="muted" style="color:#c0392b"></p>
 </div>
 <div id="dashboard" class="hidden">
-<h1>📊 pr-gen 运营看板 <span class="free-badge">完全免费开源</span> <span class="muted" id="gen"></span></h1>
+<h1>📊 pr-gen 运营看板 <span class="muted" id="gen"></span></h1>
 <div class="cards" id="cards"></div>
 <h2>API 用量与成本（近 14 天）</h2>
 <table><thead><tr><th>日期</th><th>调用次数</th><th>成本 (USD)</th></tr></thead>

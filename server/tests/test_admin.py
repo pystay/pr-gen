@@ -1,4 +1,4 @@
-"""开源免费版看板测试：用户数、用量、成本告警。"""
+"""看板测试：用户数、用量、成本告警。"""
 
 import tempfile
 import unittest
@@ -44,7 +44,7 @@ class TestAdmin(unittest.TestCase):
         resp = self.client.get("/admin")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("运营看板", resp.text)
-        self.assertIn("完全免费开源", resp.text)
+        self.assertIn("运营看板", resp.text)
 
     def test_cost_alert_threshold(self):
         self.db.record_usage("u1", "free", calls=100, cost=6.0)  # 超过 $5 阈值

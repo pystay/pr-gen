@@ -1,4 +1,4 @@
-"""开源免费版用户注册：创建用户 + 永久免费订阅（全部功能开放）。
+"""用户注册：创建用户与订阅记录。
 
 邮箱 Fernet 加密存储 + pepper 哈希查询键；重复邮箱返回已有用户（幂等）。
 """
@@ -41,7 +41,7 @@ def _require_key(request: Request, settings: Settings) -> bool:
 
 @router.post("/register")
 async def register(request: Request):
-    """注册用户：创建用户记录并激活永久免费订阅（全部功能开放）。"""
+    """注册用户：创建用户记录并激活订阅。"""
     settings: Settings = request.app.state.settings
     db: Database = request.app.state.db
     enc: Encryptor = request.app.state.encryptor

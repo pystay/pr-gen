@@ -1,7 +1,7 @@
-"""运维 cron 端点（开源免费版）。
+"""运维 cron 端点。
 
 保留：每月用量重置、成本告警检查由 admin 侧触发。
-移除：GitHub Marketplace 订阅事件、订阅过期降级（无付费订阅概念）。
+仅保留：每月用量重置；其他运维任务按需扩展。
 """
 
 from __future__ import annotations

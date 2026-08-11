@@ -1,6 +1,6 @@
 """存储层：SQLite（本地/测试）实现，表结构与 Supabase 同构。
 
-开源免费版：仅保留用户、免费订阅、用量统计与通知；无任何支付/定价数据。
+仅保留用户、订阅、用量统计与通知。
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS subscriptions (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     account_id    TEXT NOT NULL UNIQUE,
-    plan          TEXT NOT NULL DEFAULT 'free',       -- 开源免费版恒为 free
+    plan          TEXT NOT NULL DEFAULT 'free',       -- 订阅计划
     status        TEXT NOT NULL DEFAULT 'active',
     created_at    REAL NOT NULL,
     updated_at    REAL NOT NULL
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 """
 
-# 旧版（商业化版）遗留表与列，迁移时清理
+# 旧版遗留表与列，迁移时清理
 _LEGACY_TABLES = ("payment_logs", "leads")
 _LEGACY_SUBSCRIPTION_COLS = (
     "account_type", "account_login", "seats", "billing_model",
@@ -91,7 +91,7 @@ class Database:
             self._migrate(conn)
 
     def _migrate(self, conn: sqlite3.Connection) -> None:
-        """清理商业化版遗留：支付/报价表与订阅付费列。"""
+        """清理旧版遗留：废弃表与订阅多余列。"""
         tables = {r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'")}
         for legacy in _LEGACY_TABLES:
@@ -120,7 +120,7 @@ class Database:
                 "SELECT 1 FROM events WHERE event_id=?", (event_id,)
             ).fetchone() is not None
 
-    # ---------- users（开源免费版用户） ----------
+    # ---------- users ----------
 
     def create_user(self, email_hash: str, email_enc: str) -> int:
         with self._connect() as conn:
@@ -151,10 +151,10 @@ class Database:
             conn.execute("DELETE FROM subscriptions WHERE account_id=?", (str(user_id),))
             conn.execute("DELETE FROM usage WHERE account_id=?", (str(user_id),))
 
-    # ---------- subscriptions（免费订阅） ----------
+    # ---------- subscriptions（订阅） ----------
 
     def ensure_free_subscription(self, user_id: int) -> dict:
-        """为用户创建/确认免费订阅（幂等）。"""
+        """为用户创建/确认订阅（幂等）。"""
         with self._connect() as conn:
             conn.execute(
                 """INSERT OR IGNORE INTO subscriptions(account_id, plan, status,

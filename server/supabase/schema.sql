@@ -1,6 +1,5 @@
--- pr-gen 商业化服务 Supabase (PostgreSQL) 建表脚本（开源免费版）
+-- pr-gen Supabase (PostgreSQL) 建表脚本
 -- 与 server/app/db.py 的 SQLite schema 同构；部署 Supabase 后在 SQL Editor 执行。
--- 注意：本版本无任何支付/定价数据表（项目已完全免费开源）。
 
 create table if not exists events (
     event_id    text primary key,
@@ -9,7 +8,7 @@ create table if not exists events (
     received_at timestamptz not null default now()
 );
 
--- 开源免费版用户（邮箱 sha256+pepper 哈希作查询键 + Fernet 加密存储原文）
+-- 用户（邮箱 sha256+pepper 哈希作查询键 + Fernet 加密存储原文）
 create table if not exists users (
     id         bigserial primary key,
     email_hash text not null unique,
@@ -17,7 +16,7 @@ create table if not exists users (
     created_at timestamptz not null default now()
 );
 
--- 免费订阅（全部功能开放，恒为 free/active）
+-- 订阅（free/active）
 create table if not exists subscriptions (
     id         bigserial primary key,
     account_id text not null unique,

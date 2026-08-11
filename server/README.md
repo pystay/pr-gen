@@ -1,7 +1,6 @@
-# pr-gen 运营服务（server/）— 开源免费版
+# pr-gen 运营服务（server/）
 
-FastAPI 实现的轻量运营服务：免费用户注册、用量统计、运营看板与成本监控。
-**本项目完全免费开源，无任何付费渠道。**
+FastAPI 实现的轻量运营服务：用户注册、用量统计、运营看板与成本监控。
 
 ## 快速开始
 
@@ -17,7 +16,7 @@ uvicorn app.main:app --reload --port 8000
 
 | 端点 | 说明 |
 | --- | --- |
-| `POST /api/auth/register` | 免费用户注册（全部功能开放，邮箱加密存储） |
+| `POST /api/auth/register` | 用户注册（邮箱加密存储） |
 | `DELETE /api/auth/me/{user_id}` | GDPR 删除：用户/订阅/用量记录 |
 | `POST /api/usage` | pr-gen CLI 生成后上报用量/成本 |
 | `GET /api/admin/stats` | 看板数据（注册用户/用量/成本/通知） |

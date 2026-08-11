@@ -1,4 +1,4 @@
-"""FastAPI 入口（开源免费版）：组装路由、共享状态（settings/db/encryptor）。
+"""FastAPI 入口：组装路由、共享状态（settings/db/encryptor）。
 
 启动：uvicorn app.main:app --reload
 """
@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="pr-gen 开源免费版",
+    title="pr-gen",
     version=__version__,
     lifespan=lifespan,
 )
