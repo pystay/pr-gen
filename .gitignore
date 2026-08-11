@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# pr-gen server 运行时数据（含加密密钥与业务数据库，禁止入库）
+server/data/
+server/mail_out/
+*.db
+*.db-wal
+*.db-shm
+*.key
+
+# 本地环境配置
+.env
+.env.local
+
+# 构建产物
+dist/
+build/
+*.exe
+
+# 编辑器/系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
