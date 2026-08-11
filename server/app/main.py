@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 
 from . import __version__
 from .admin import router as admin_router
+from .alipay_pay import router as alipay_router
 from .auth import router as auth_router
 from .config import Settings, load_settings
 from .db import Database
@@ -72,6 +73,7 @@ app.include_router(admin_router)
 app.include_router(auth_router)
 app.include_router(payment_router)
 app.include_router(paypal_router)
+app.include_router(alipay_router)
 
 
 @app.get("/api/pricing")

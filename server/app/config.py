@@ -53,6 +53,14 @@ DEFAULT_ENV = {
     "PAYPAL_SANDBOX": "true",
     # 定价配置
     "PRICING_CONFIG_PATH": "",
+    # 支付宝 AI 网页应用收款（真实通道）
+    "ALIPAY_APP_ID": "",
+    "ALIPAY_APP_PRIVATE_KEY": "",  # PKCS#1 格式（BEGIN RSA PRIVATE KEY）
+    "ALIPAY_PUBLIC_KEY": "",
+    "ALIPAY_SELLER_ID": "",
+    "ALIPAY_SANDBOX": "true",
+    "ALIPAY_NOTIFY_URL": "",
+    "ALIPAY_RETURN_URL": "",
     # 安全
     "DATA_ENCRYPTION_KEY": "",  # 空则自动生成并持久化到 data/ 下
     "USAGE_API_KEY": "",  # 非空时 /api/usage 与 /cron/downgrade 要求 X-API-Key 头
@@ -107,6 +115,14 @@ class Settings:
     paypal_webhook_id: str = ""
     paypal_sandbox: bool = True
     pricing_config_path: str = ""
+    # 支付宝
+    alipay_app_id: str = ""
+    alipay_app_private_key: str = ""
+    alipay_public_key: str = ""
+    alipay_seller_id: str = ""
+    alipay_sandbox: bool = True
+    alipay_notify_url: str = ""
+    alipay_return_url: str = ""
 
     @property
     def is_local_mode(self) -> bool:
@@ -189,4 +205,11 @@ def load_settings(env_overrides: dict[str, str] | None = None) -> Settings:
         paypal_webhook_id=merged["PAYPAL_WEBHOOK_ID"],
         paypal_sandbox=str(merged["PAYPAL_SANDBOX"]).lower() in ("true", "1", "yes"),
         pricing_config_path=merged["PRICING_CONFIG_PATH"],
+        alipay_app_id=merged["ALIPAY_APP_ID"],
+        alipay_app_private_key=merged["ALIPAY_APP_PRIVATE_KEY"],
+        alipay_public_key=merged["ALIPAY_PUBLIC_KEY"],
+        alipay_seller_id=merged["ALIPAY_SELLER_ID"],
+        alipay_sandbox=str(merged["ALIPAY_SANDBOX"]).lower() in ("true", "1", "yes"),
+        alipay_notify_url=merged["ALIPAY_NOTIFY_URL"],
+        alipay_return_url=merged["ALIPAY_RETURN_URL"],
     )

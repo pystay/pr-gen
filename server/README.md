@@ -38,6 +38,10 @@ uvicorn app.main:app --reload --port 8000
 | `POST /api/payment/callback` | 国内支付网关异步回调（验签+幂等+激活） |
 | `POST /api/payment/paypal/create` | PayPal 下单（返回 approval_url） |
 | `POST /api/payment/paypal/webhook` | PayPal 事件（PAYMENT.CAPTURE.COMPLETED → 激活） |
+| `POST /api/payment/alipay/create` | 支付宝 AI 网页应用收款下单（返回 HTML 支付表单，真实通道） |
+| `POST /api/payment/alipay/notify` | 支付宝异步通知（RSA2 验签 + 业务校验 + 幂等 + 激活） |
+| `GET /api/payment/alipay/return` | 支付完成同步回跳页（不信任回跳参数） |
+| `POST /api/payment/alipay/query` / `refund` / `refund/query` / `close` | 支付宝交易查询 / 退款 / 退款查询 / 关闭 |
 | `POST /api/github/cron/reset-usage` | 每月用量重置（仅 Free 用户） |
 
 ## 定价与收费
@@ -49,6 +53,12 @@ uvicorn app.main:app --reload --port 8000
 - 支付渠道：国内（支付宝/微信，FAST易支付/YPay 风格免签网关）+ 海外 PayPal API v2
   - 未配置网关密钥时本地模拟（模拟二维码 / 模拟 approval URL），配置后自动切换真实服务
   - 回调验签（md5 签名）、金额一致性校验、原子幂等、原始回调留痕（对账）
+- **支付宝真实通道（AI 网页应用收款，官方 alipay-sdk-python）**：`/api/payment/alipay/*`
+  - 下单 `alipay.trade.page.pay`（`page_execute` 返回支付表单）、异步通知 RSA2 验签、
+    交易查询/退款/退款查询/关闭、同步回跳页
+  - 配置：`ALIPAY_APP_ID` / `ALIPAY_APP_PRIVATE_KEY`（PKCS#1）/ `ALIPAY_PUBLIC_KEY` /
+    `ALIPAY_SANDBOX` / `ALIPAY_NOTIFY_URL`（公网 HTTPS，生产必配）
+  - 未配置凭证时接口明确报错（不 fallback 占位密钥）；本地联调用交易查询兜底确认支付结果
 - 订阅生命周期：注册 → free(+30 天) → 支付延长 end_date → 到期 cron 置 expired → 续费叠加
 
 ## 验收测试
